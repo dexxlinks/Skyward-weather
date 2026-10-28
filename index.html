@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skyward – Weather forecast for any city</title>
+  <meta name="description" content="Search any city for current weather, an hourly forecast and a 7-day outlook. Built with HTML, CSS and vanilla JavaScript using the Open-Meteo API.">
+  <meta name="theme-color" content="#0a111f">
+  <link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Applies the saved theme before first paint to avoid a flash -->
+  <script src="js/theme-init.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="topbar">
+    <div class="container topbar__inner">
+      <a class="brand" href="./" aria-label="Skyward home">
+        <span class="brand__mark" data-icon="logo" aria-hidden="true"></span>
+        <span class="brand__name">Skyward</span>
+      </a>
+
+      <div class="topbar__controls">
+        <button class="icon-button" type="button" data-action="locate" aria-label="Use my current location">
+          <span class="icon" data-icon="locate" aria-hidden="true"></span>
+          <span class="icon-button__label">My location</span>
+        </button>
+
+        <div class="segmented" role="group" aria-label="Temperature unit">
+          <button class="segmented__option" type="button" data-unit="celsius" aria-pressed="true" aria-label="Celsius">°C</button>
+          <button class="segmented__option" type="button" data-unit="fahrenheit" aria-pressed="false" aria-label="Fahrenheit">°F</button>
+        </div>
+
+        <button class="icon-button icon-button--square" id="theme-toggle" type="button" aria-label="Switch to light theme">
+          <span class="icon" id="theme-toggle-icon" aria-hidden="true"></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="container main" aria-busy="false">
+    <h1 class="visually-hidden">Skyward weather forecast</h1>
+
+    <section class="search" aria-label="Find a city">
+      <form id="search-form" class="search__form" role="search" novalidate>
+        <label class="visually-hidden" for="search-input">City name</label>
+        <div class="search__field">
+          <span class="icon search__icon" data-icon="search" aria-hidden="true"></span>
+          <input
+            id="search-input"
+            name="city"
+            type="search"
+            placeholder="Search a city, e.g. Ilorin or Paris, France"
+            autocomplete="off"
+            autocapitalize="words"
+            spellcheck="false"
+            maxlength="80"
+            enterkeyhint="search"
+            aria-describedby="search-hint"
+          >
+        </div>
+        <button id="search-button" class="button button--primary" type="submit">
+          <span class="spinner" aria-hidden="true"></span>
+          <span class="button__label">Search</span>
+        </button>
+      </form>
+      <p id="search-hint" class="hint">Add a country or state to narrow results, like “Lagos, Nigeria”.</p>
+
+      <div id="candidates" class="candidates" hidden>
+        <p id="candidates-label" class="candidates__label">Not the right place?</p>
+        <ul id="candidates-list" class="candidates__list" aria-labelledby="candidates-label"></ul>
+      </div>
+    </section>
+
+    <div id="error-banner" class="banner" role="alert" hidden>
+      <span class="icon banner__icon" data-icon="alert" aria-hidden="true"></span>
+      <p id="error-message" class="banner__text"></p>
+      <button id="error-dismiss" class="banner__close" type="button" aria-label="Dismiss message">
+        <span class="icon" data-icon="close" aria-hidden="true"></span>
+      </button>
+    </div>
+
+    <p id="status" class="visually-hidden" role="status" aria-live="polite"></p>
+
+    <!-- Shown before any weather has been loaded -->
+    <section id="welcome" class="card welcome">
+      <h2 class="welcome__title">Check the weather anywhere</h2>
+      <p class="welcome__text">Search for a city above, or let Skyward use your device’s location. Your last place is remembered for next time.</p>
+      <div class="welcome__actions">
+        <button class="button button--primary" type="button" data-action="locate">
+          <span class="icon" data-icon="locate" aria-hidden="true"></span>
+          <span>Use my location</span>
+        </button>
+      </div>
+      <p class="welcome__try">Or try one of these:</p>
+      <ul class="chip-list">
+        <li><button class="chip" type="button" data-city="Ilorin, Nigeria">Ilorin</button></li>
+        <li><button class="chip" type="button" data-city="Lagos, Nigeria">Lagos</button></li>
+        <li><button class="chip" type="button" data-city="Abuja, Nigeria">Abuja</button></li>
+        <li><button class="chip" type="button" data-city="London, United Kingdom">London</button></li>
+        <li><button class="chip" type="button" data-city="New York, United States">New York</button></li>
+      </ul>
+    </section>
+
+    <!-- Placeholder layout shown while the first request is running -->
+    <div id="skeleton" class="dashboard" aria-hidden="true" hidden>
+      <div class="skeleton skeleton--hero"></div>
+      <div class="stats">
+        <div class="skeleton skeleton--stat"></div>
+        <div class="skeleton skeleton--stat"></div>
+        <div class="skeleton skeleton--stat"></div>
+        <div class="skeleton skeleton--stat"></div>
+      </div>
+      <div class="skeleton skeleton--hourly"></div>
+      <div class="skeleton skeleton--daily"></div>
+    </div>
+
+    <div id="dashboard" class="dashboard" hidden>
+      <section id="hero" class="card hero" aria-labelledby="location-name">
+        <div class="hero__header">
+          <div class="hero__place">
+            <h2 id="location-name" class="hero__city">–</h2>
+            <p id="location-detail" class="hero__detail"></p>
+          </div>
+          <p id="day-night" class="badge"><span class="icon badge__icon" id="day-night-icon" aria-hidden="true"></span><span id="day-night-text"></span></p>
+        </div>
+
+        <div class="hero__body">
+          <div class="hero__reading">
+            <p class="hero__temp"><span id="current-temp" class="hero__temp-value">–</span><span id="current-unit" class="hero__temp-unit">°C</span></p>
+            <p id="current-description" class="hero__description"></p>
+            <p id="current-range" class="hero__range"></p>
+          </div>
+          <div id="current-icon" class="hero__icon"></div>
+        </div>
+
+        <p id="local-time" class="hero__time"></p>
+      </section>
+
+      <section class="stats" aria-label="Current conditions">
+        <dl class="stat">
+          <dt class="stat__label"><span class="icon" data-icon="thermometer" aria-hidden="true"></span>Feels like</dt>
+          <dd id="stat-feels-like" class="stat__value">–</dd>
+          <dd id="stat-feels-like-note" class="stat__note"></dd>
+        </dl>
+        <dl class="stat">
+          <dt class="stat__label"><span class="icon" data-icon="droplet" aria-hidden="true"></span>Humidity</dt>
+          <dd id="stat-humidity" class="stat__value">–</dd>
+          <dd class="stat__note">Relative humidity</dd>
+        </dl>
+        <dl class="stat">
+          <dt class="stat__label"><span class="icon" data-icon="wind" aria-hidden="true"></span>Wind</dt>
+          <dd id="stat-wind" class="stat__value">–</dd>
+          <dd class="stat__note">At 10 m height</dd>
+        </dl>
+        <dl class="stat">
+          <dt class="stat__label"><span class="icon" data-icon="umbrella" aria-hidden="true"></span>Precipitation</dt>
+          <dd id="stat-precipitation" class="stat__value">–</dd>
+          <dd id="stat-precipitation-note" class="stat__note"></dd>
+        </dl>
+      </section>
+
+      <section class="card forecast hourly-card" aria-labelledby="hourly-heading">
+        <div class="card__header">
+          <h2 id="hourly-heading" class="card__title">Next 24 hours</h2>
+          <p id="hourly-timezone" class="card__meta"></p>
+        </div>
+        <div class="hourly-scroll" role="region" aria-label="Hourly forecast, scroll sideways for more" tabindex="0">
+          <ol id="hourly-list" class="hourly"></ol>
+        </div>
+      </section>
+
+      <section class="card forecast daily-card" aria-labelledby="daily-heading">
+        <div class="card__header">
+          <h2 id="daily-heading" class="card__title">7-day forecast</h2>
+          <p class="card__meta">Low to high</p>
+        </div>
+        <ol id="daily-list" class="daily"></ol>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer__inner">
+      <p>Skyward · a portfolio project</p>
+      <p>
+        Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>.
+        Place search based on <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a>.
+      </p>
+    </div>
+  </footer>
+
+  <script src="js/icons.js" defer></script>
+  <script src="js/app.js" defer></script>
+</body>
+</html>
